@@ -134,16 +134,16 @@ def classify_scrap(images: List[Image.Image], location: Dict[str, str]):
 
     for image in images:
         prompt = f"""
-        This image shows an item the user wishes to sell to a local scrap collector in {state}, India. Based on the object in the image, please provide:
+This image shows an item the user wishes to sell to a local scrap collector in {state}, India. Based on the object in the image, provide a detailed classification. Specifically, include:
 
-        1. Recyclability: Whether this item is recyclable according to {state} recycling guidelines.
-        2. Scrap Value: If the item can be sold to a scrap collector and its potential resale value range.
-        3. Preparation Steps: Specific steps for preparing this item (cleaning, drying, segregating) to maximize resale value.
-        4. Safety Guidelines: Practical advice on safe handling and storage, considering {state} regulations.
-        5. Environmental Impact: Brief note on environmental benefits of recycling this item.
+1. **Recyclability**: Clearly state if this item is recyclable based on {state} recycling guidelines.
+2. **Scrap Value**: Indicate if it has a resale value and provide a rough range of monetary value (in ₹).
+3. **Preparation Steps**: List clear and specific steps to prepare the item for resale or recycling (e.g., cleaning, drying, disassembling).
+4. **Safety Guidelines**: Provide actionable safety tips for handling or storing the item.
+5. **Environmental Impact**: Explain briefly why recycling this item is important for the environment.
 
-        Format the response with clear headings and bullet points.
-        """
+Use a structured format with headings for each section. If a section is not applicable, explicitly say "Not applicable."
+"""
         
         response = model.generate_content([prompt, image])
         
