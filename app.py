@@ -5,15 +5,12 @@ import geocoder
 from PIL import Image
 from typing import List, Dict
 import google.generativeai as genai
-
-# Additional imports for animations and styling
 from streamlit_lottie import st_lottie
 import requests
 import time
 
-# -- 1) Load Lottie animations (from URL or local JSON) --
+# Lottie animations
 def load_lottieurl(url: str):
-    """Helper function to load a Lottie animation from a URL."""
     try:
         r = requests.get(url)
         if r.status_code != 200:
@@ -22,19 +19,18 @@ def load_lottieurl(url: str):
     except:
         return None
 
-# Example Lottie animation URLs (you can replace these with your own)
 LOTTIE_RECYCLING_URL = "https://lottie.host/65119e8e-f82c-4b53-b613-16096eb36a8e/Yrn7AjQUNK.json"
 LOTTIE_UPLOAD_URL = "https://lottie.host/f5326758-f0e1-4cdc-b702-b60760d5a86f/95NWTtRHVm.json"
 
-# Get the API key from the environment
+# Configure API
 api_key = os.getenv("API_KEY")
 if not api_key:
     raise ValueError("API_KEY not found. Please set it in the .env file or as an environment variable.")
 
-# Configure the Generative AI API
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
+# Recycling rules dictionary remains the same as in your original code
 RECYCLING_RULES = {
     "Maharashtra": [
         "Separate waste at source into wet, dry, and hazardous categories.",
@@ -98,15 +94,27 @@ RECYCLING_RULES = {
     ]
 }
 
-class LocationService:
-    """Handle location-related operations"""
 
+class LocationService:
     @staticmethod
     def get_location() -> Dict[str, str]:
-        """Get user's location"""
+        """Get user's location with manual override option"""
+        # Add manual location input option in Streamlit
+        use_manual = st.sidebar.checkbox("Enter location manually?")
+        
+        if use_manual:
+            city = st.sidebar.text_input("Enter City", "Mumbai")
+            state = st.sidebar.selectbox("Select State", 
+                                       options=list(RECYCLING_RULES.keys()),
+                                       index=0)
+            return {
+                "city": city,
+                "state": state,
+                "country": "India"
+            }
+        
         try:
-            # Manual input or IP-based geolocation
-            st.info("Using IP-based geolocation. Provide manual inputs if needed.")
+            st.info("Using IP-based geolocation. Check 'Enter location manually' in sidebar to override.")
             g = geocoder.ip('me')
             if g.ok:
                 return {
@@ -120,30 +128,35 @@ class LocationService:
             return {"city": "Mumbai", "state": "Maharashtra", "country": "India"}
 
 def classify_scrap(images: List[Image.Image], location: Dict[str, str]):
-    """Classify images as recyclable or non-recyclable with Generative AI."""
+    """Enhanced classification function with more detailed prompts"""
     classifications = []
     state = location.get("state", "Maharashtra")
 
     for image in images:
         prompt = f"""
-        Classify the item in this image according to {state}, India recycling rules:
-        1. Is it recyclable?
-        2. Can it be sold to a scrap collector?
-        3. Recommendations for preparation and safe handling.
+        This image shows an item the user wishes to sell to a local scrap collector in {state}, India. Based on the object in the image, please provide:
+
+        1. Recyclability: Whether this item is recyclable according to {state} recycling guidelines.
+        2. Scrap Value: If the item can be sold to a scrap collector and its potential resale value range.
+        3. Preparation Steps: Specific steps for preparing this item (cleaning, drying, segregating) to maximize resale value.
+        4. Safety Guidelines: Practical advice on safe handling and storage, considering {state} regulations.
+        5. Environmental Impact: Brief note on environmental benefits of recycling this item.
+
+        Format the response with clear headings and bullet points.
         """
-        # In practice, you may need a different approach to pass images to the model
-        # For demonstration, we treat the image as a separate input or handle as text-based prompt
-        response = model.generate_content([prompt, "Image placeholder"])
+        
+        response = model.generate_content([prompt, image])
+        
         classifications.append({
             "image": image,
-            "recommendation": response.text,
-            "recycling_rules": RECYCLING_RULES.get(state, ["No rules available."])
+            "analysis": response.text,
+            "recycling_rules": RECYCLING_RULES.get(state, ["No specific rules available."])
         })
     return classifications
 
 def main():
-    # -- 2) Custom CSS for minor transitions or styling --
-    custom_css = """
+    # Custom CSS with enhanced styling
+    st.markdown("""
     <style>
     .title {
         text-align: center;
@@ -154,84 +167,96 @@ def main():
     .title:hover {
         color: #B8860B;
     }
-    .box {
-        padding: 10px;
+    .result-box {
+        padding: 20px;
+        margin: 15px 0;
+        border-radius: 10px;
+        border: 2px solid #e0e0e0;
+    }
+    .category-header {
+        color: #2c3e50;
+        font-size: 1.2em;
         margin: 10px 0;
+    }
+    .value-estimate {
+        color: #27ae60;
+        font-weight: bold;
+    }
+    .safety-warning {
+        color: #e74c3c;
+        padding: 10px;
+        background-color: #ffebee;
         border-radius: 5px;
-    }
-    .box-recyclable {
-        background-color: #d0f0c0; /* pale green */
-    }
-    .box-nonrecyclable {
-        background-color: #ffe6e6; /* pale red */
-    }
-    .rules {
-        font-style: italic;
-        color: #4b4b4b;
+        margin: 10px 0;
     }
     </style>
-    """
-    st.markdown(custom_css, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-    st.markdown("<h1 class='title'>♻️ Scrap Classifier and Recycling Guide</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='title'>♻️ Smart Scrap Classifier</h1>", unsafe_allow_html=True)
+    
+    # Sidebar setup
     st.sidebar.header("Upload and Classify Scrap")
-
-    # -- 3) Lottie animations in the sidebar or main page --
-    lottie_recycling = load_lottieurl(LOTTIE_RECYCLING_URL)
-    lottie_upload = load_lottieurl(LOTTIE_UPLOAD_URL)
-
-    if lottie_recycling:
-        st_lottie(lottie_recycling, speed=1, height=200, key="recycling")
-
-    # User location
+    
+    # Location handling
     location = LocationService.get_location()
-    st.sidebar.write(f"Detected Location: {location['city']}, {location['state']}")
-
-    # -- 4) Lottie animation near file uploader for better user experience --
-    if lottie_upload:
-        with st.sidebar:
-            st_lottie(lottie_upload, speed=1, height=150, key="uploader")
-
-    # Upload images
+    st.sidebar.write(f"Active Location: {location['city']}, {location['state']}")
+    
+    # Display local recycling rules
+    with st.expander("View Local Recycling Rules"):
+        state_rules = RECYCLING_RULES.get(location['state'], [])
+        for rule in state_rules:
+            st.write(f"• {rule}")
+    
+    # File upload
     uploaded_files = st.file_uploader(
-        "Upload images of the items to classify",
+        "Upload images of scrap items",
         accept_multiple_files=True,
         type=["jpg", "jpeg", "png", "webp"]
     )
 
-    # Process uploaded files
     if uploaded_files:
-        # We'll add a small spinner as we process images
-        with st.spinner("Classifying your scrap..."):
-            time.sleep(1)  # Just to simulate a little delay
+        with st.spinner("Analyzing your items..."):
             images = [Image.open(file) for file in uploaded_files]
             results = classify_scrap(images, location)
 
-        # Once classification is done, we show results with a bit of flair
-        st.balloons()  # Celebratory effect
+        st.success("Analysis Complete!")
+        st.balloons()
+
         for i, result in enumerate(results):
-            st.image(images[i], caption=f"Uploaded Image {i + 1}")
-
-            # Determine if the recommendation text suggests recyclable or not
-            recommendation_lower = result['recommendation'].lower()
-            is_recyclable = "yes" in recommendation_lower or "recyclable" in recommendation_lower
+            st.markdown(f"### Item {i+1}")
             
-            if is_recyclable:
-                box_class = "box box-recyclable"
-                status_header = "### This item may be Recyclable!"
-            else:
-                box_class = "box box-nonrecyclable"
-                status_header = "### This item may Not be Recyclable or Needs Special Handling!"
+            # Create columns for image and analysis
+            col1, col2 = st.columns([1, 2])
+            
+            with col1:
+                st.image(images[i], use_column_width=True)
+            
+            with col2:
+                st.markdown(f"<div class='result-box'>{result['analysis']}</div>", 
+                          unsafe_allow_html=True)
+                
+                # Display preparation tips
+                if "preparation" in result['analysis'].lower():
+                    st.markdown("#### 🔧 Preparation Checklist")
+                    st.info(result['analysis'].split("Preparation")[1].split("\n")[0])
+                
+                # Display safety warnings if present
+                if "safety" in result['analysis'].lower():
+                    st.markdown("#### ⚠️ Safety Guidelines")
+                    st.warning(result['analysis'].split("Safety")[1].split("\n")[0])
 
-            st.markdown(f"<div class='{box_class}'>{status_header}</div>", unsafe_allow_html=True)
-            st.write(f"**Recommendation:** {result['recommendation']}")
             st.markdown("---")
-            st.markdown("<span class='rules'>Recycling Rules:</span>", unsafe_allow_html=True)
-            for rule in result['recycling_rules']:
-                st.write(f"- {rule}")
 
     else:
-        st.info("Please upload one or more images to proceed.")
+        # Display welcome message and instructions
+        st.info("👋 Welcome! Upload images of your scrap items to get:")
+        st.markdown("""
+        - ♻️ Recyclability analysis
+        - 💰 Potential scrap value
+        - 📝 Preparation guidelines
+        - ⚠️ Safety recommendations
+        - 🌍 Environmental impact
+        """)
 
 if __name__ == "__main__":
     main()
