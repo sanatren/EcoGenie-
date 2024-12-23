@@ -32,246 +32,66 @@ model = genai.GenerativeModel("gemini-1.5-flash")
 
 # Recycling rules dictionary remains the same as in your original code
 RECYCLING_RULES = {
-    "Maharashtra": {
-        "rules": [
-            "Separate waste at source into wet, dry, and hazardous categories",
-            "Ensure plastics are clean and dry before disposal",
-            "E-waste should be disposed of through authorized e-waste collection centers",
-            "Use bins provided by local authorities for proper segregation"
-        ],
-        "collection_centers": [
-            "Mumbai Municipal Corporation Recycling Centers",
-            "Pune Waste Management Facilities",
-            "Authorized E-waste Collection Points"
-        ],
-        "banned_items": [
-            "Single-use plastics",
-            "Plastic bags below 50 microns",
-            "Non-recyclable thermocol"
-        ],
-        "scrap_rates": {
-            "newspaper": "₹12-15 per kg",
-            "cardboard": "₹8-10 per kg",
-            "metal": "₹30-40 per kg",
-            "plastic": "₹15-20 per kg"
-        }
-    },
-    "Delhi": {
-        "rules": [
-            "Use separate bins for dry waste and wet waste",
-            "Compost kitchen waste to reduce landfill burden",
-            "Recycle paper products and avoid mixing recyclables",
-            "Participate in local clean-up drives"
-        ],
-        "collection_centers": [
-            "MCD Waste Management Centers",
-            "Delhi Cantonment Recycling Facilities",
-            "Government Authorized Collection Points"
-        ],
-        "banned_items": [
-            "Plastic bags under 50 microns",
-            "Non-biodegradable packaging",
-            "Disposable plastics"
-        ],
-        "scrap_rates": {
-            "newspaper": "₹13-16 per kg",
-            "cardboard": "₹9-11 per kg",
-            "metal": "₹32-42 per kg",
-            "plastic": "₹16-21 per kg"
-        }
-    },
-    "Karnataka": {
-        "rules": [
-            "Segregate waste into dry, wet, and reject categories",
-            "Hand over e-waste to authorized recyclers",
-            "Avoid littering and use public recycling bins",
-            "Compost organic waste at home where possible"
-        ],
-        "collection_centers": [
-            "BBMP Dry Waste Collection Centers",
-            "Bangalore E-waste Recycling Facilities",
-            "State-authorized Hazardous Waste Disposal Units"
-        ],
-        "banned_items": [
-            "Plastic bags below 40 microns",
-            "Single-use cutlery",
-            "Non-recyclable plastics"
-        ],
-        "scrap_rates": {
-            "newspaper": "₹11-14 per kg",
-            "cardboard": "₹7-9 per kg",
-            "metal": "₹28-38 per kg",
-            "plastic": "₹14-18 per kg"
-        }
-    },
-    "Tamil Nadu": {
-        "rules": [
-            "Segregate waste at source into biodegradable and non-biodegradable categories",
-            "Avoid mixing hazardous waste with household waste",
-            "Deposit electronic waste with authorized centers",
-            "Participate in local municipal recycling programs"
-        ],
-        "collection_centers": [
-            "Chennai Corporation Recycling Centers",
-            "Authorized E-waste Collection Centers in Coimbatore",
-            "State-run Waste Management Units"
-        ],
-        "banned_items": [
-            "Plastic bags below 50 microns",
-            "Non-recyclable thermocol",
-            "Single-use plastics"
-        ],
-        "scrap_rates": {
-            "newspaper": "₹10-13 per kg",
-            "cardboard": "₹6-8 per kg",
-            "metal": "₹25-35 per kg",
-            "plastic": "₹12-17 per kg"
-        }
-    },
-    "Rajasthan": {
-        "rules": [
-            "Use color-coded bins for waste segregation",
-            "Deposit hazardous waste at authorized centers",
-            "Recycle plastics and metals through local scrap dealers",
-            "Compost kitchen waste to reduce landfill usage"
-        ],
-        "collection_centers": [
-            "Jaipur Waste Processing Centers",
-            "Authorized Recycling Centers in Jodhpur",
-            "State-run Hazardous Waste Disposal Units"
-        ],
-        "banned_items": [
-            "Plastic carry bags below 50 microns",
-            "Disposable polystyrene items",
-            "Non-biodegradable packaging"
-        ],
-        "scrap_rates": {
-            "newspaper": "₹12-14 per kg",
-            "cardboard": "₹7-10 per kg",
-            "metal": "₹30-40 per kg",
-            "plastic": "₹14-19 per kg"
-        }
-    },
-    "Uttar Pradesh": {
-        "rules": [
-            "Segregate waste at source into wet and dry categories",
-            "E-waste should be deposited at government-approved facilities",
-            "Recycle paper, metal, and glass products",
-            "Compost organic waste at home or through municipal programs"
-        ],
-        "collection_centers": [
-            "Lucknow Municipal Recycling Units",
-            "Authorized Waste Collection Centers in Kanpur",
-            "E-waste Collection Points in Varanasi"
-        ],
-        "banned_items": [
-            "Single-use plastics",
-            "Plastic bags below 50 microns",
-            "Non-biodegradable materials"
-        ],
-        "scrap_rates": {
-            "newspaper": "₹11-14 per kg",
-            "cardboard": "₹8-10 per kg",
-            "metal": "₹28-35 per kg",
-            "plastic": "₹14-18 per kg"
-        }
-    },
-    "West Bengal": {
-        "rules": [
-            "Segregate biodegradable and non-biodegradable waste",
-            "Recycle plastics, paper, and metals through local dealers",
-            "Deposit e-waste at authorized centers",
-            "Compost kitchen waste to reduce environmental impact"
-        ],
-        "collection_centers": [
-            "Kolkata Waste Management Facilities",
-            "Authorized E-waste Collection Points in Howrah",
-            "Municipal Waste Processing Units in Durgapur"
-        ],
-        "banned_items": [
-            "Plastic bags below 50 microns",
-            "Non-recyclable thermocol",
-            "Disposable plastics"
-        ],
-        "scrap_rates": {
-            "newspaper": "₹12-16 per kg",
-            "cardboard": "₹8-11 per kg",
-            "metal": "₹30-42 per kg",
-            "plastic": "₹15-20 per kg"
-        }
-    },
-    "Gujarat": {
-        "rules": [
-            "Separate waste into dry and wet categories",
-            "Deposit hazardous waste at approved centers",
-            "Recycle metals, plastics, and paper responsibly",
-            "Use municipal services for e-waste disposal"
-        ],
-        "collection_centers": [
-            "Ahmedabad Dry Waste Collection Centers",
-            "Surat Hazardous Waste Disposal Units",
-            "Authorized Recycling Points in Vadodara"
-        ],
-        "banned_items": [
-            "Plastic bags below 50 microns",
-            "Non-recyclable thermocol items",
-            "Single-use plastics"
-        ],
-        "scrap_rates": {
-            "newspaper": "₹13-15 per kg",
-            "cardboard": "₹9-12 per kg",
-            "metal": "₹32-40 per kg",
-            "plastic": "₹16-21 per kg"
-        }
-    },
-    "Punjab": {
-        "rules": [
-            "Use green and blue bins for waste segregation",
-            "Avoid mixing organic and inorganic waste",
-            "E-waste should be handed over to authorized centers",
-            "Compost kitchen and garden waste at home"
-        ],
-        "collection_centers": [
-            "Chandigarh Recycling Centers",
-            "Ludhiana Municipal Waste Facilities",
-            "Authorized Scrap Dealers in Amritsar"
-        ],
-        "banned_items": [
-            "Plastic bags below 50 microns",
-            "Single-use plastic items",
-            "Non-recyclable packaging"
-        ],
-        "scrap_rates": {
-            "newspaper": "₹12-14 per kg",
-            "cardboard": "₹7-9 per kg",
-            "metal": "₹28-38 per kg",
-            "plastic": "₹14-19 per kg"
-        }
-    },
-    "Kerala": {
-        "rules": [
-            "Segregate waste into biodegradable and non-biodegradable categories",
-            "Participate in local recycling initiatives",
-            "Deposit hazardous and e-waste at authorized centers",
-            "Avoid burning waste materials"
-        ],
-        "collection_centers": [
-            "Thiruvananthapuram Municipal Recycling Units",
-            "Authorized Waste Processing Facilities in Kochi",
-            "State-run Collection Centers in Kozhikode"
-        ],
-        "banned_items": [
-            "Plastic carry bags below 50 microns",
-            "Non-biodegradable thermocol items",
-            "Single-use plastics"
-        ],
-        "scrap_rates": {
-            "newspaper": "₹11-15 per kg",
-            "cardboard": "₹8-10 per kg",
-            "metal": "₹29-37 per kg",
-            "plastic": "₹14-18 per kg"
-        }
-    }
+    "Maharashtra": [
+        "Separate waste at source into wet, dry, and hazardous categories.",
+        "Ensure plastics are clean and dry before disposal.",
+        "E-waste should be disposed of through authorized e-waste collection centers.",
+        "Use bins provided by local authorities for proper segregation."
+    ],
+    "Delhi": [
+        "Use separate bins for dry waste (plastic, paper, metal) and wet waste (food scraps).",
+        "Compost kitchen waste to reduce landfill burden.",
+        "Recycle paper products and avoid mixing recyclables with non-recyclables.",
+        "Participate in local clean-up drives and awareness programs."
+    ],
+    "Karnataka": [
+        "Sort waste into dry and wet categories at home before disposal.",
+        "Use designated collection bins for e-waste and ensure safe disposal.",
+        "Encourage local recycling initiatives and community clean-ups.",
+        "Ensure that plastic containers are rinsed and cleaned before recycling."
+    ],
+    "Tamil Nadu": [
+        "Rinse all plastic bottles and containers before disposal.",
+        "Separate recyclable materials (metals, plastics, paper) from non-recyclables.",
+        "Participate in local waste segregation workshops.",
+        "Avoid single-use plastics and prefer biodegradable options."
+    ],
+    "West Bengal": [
+        "Recyclables should be clean and dry; food residue can contaminate materials.",
+        "E-waste must be collected and disposed of through authorized channels.",
+        "Use community recycling drives to promote awareness.",
+        "Segregate hazardous waste (batteries, chemicals) separately."
+    ],
+    "Gujarat": [
+        "Flatten cardboard boxes to save space in recycling bins.",
+        "Avoid the use of plastic bags; use cloth bags instead.",
+        "Participate in local recycling programs and educational initiatives.",
+        "Dispose of electronic waste at designated centers only."
+    ],
+    "Rajasthan": [
+        "Source segregation of waste into biodegradable and non-biodegradable materials.",
+        "Participate in community awareness programs about recycling.",
+        "Ensure waste is dry and clean before disposal in recycling bins.",
+        "Compost organic waste at home to reduce landfill use."
+    ],
+    "Andhra Pradesh": [
+        "Recyclables should be kept dry; wet items can lead to contamination.",
+        "Follow local guidelines for electronic waste disposal.",
+        "Engage in community-led recycling efforts and campaigns.",
+        "Avoid mixing recyclables with general waste."
+    ],
+    "Telangana": [
+        "Use separate bins for recyclables and ensure they are clean.",
+        "Participate in local recycling drives and educational workshops.",
+        "Check with local authorities about e-waste collection schedules.",
+        "Be aware of local regulations regarding hazardous waste disposal."
+    ],
+    "Uttar Pradesh": [
+        "Sort waste at home into recyclables and non-recyclables.",
+        "Consult local agencies for the proper disposal of hazardous materials.",
+        "Participate in community initiatives for waste management and recycling.",
+        "Use recyclable materials wherever possible to reduce waste."
+    ]
 }
 
 
