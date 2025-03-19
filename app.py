@@ -100,76 +100,54 @@ RECYCLING_RULES = {
 
 class LocationService:
     @staticmethod
-    def get_location() -> Dict[str, str]:
-        """Get user's location with browser geolocation API and manual override option"""
-        # Define your default location
-        DEFAULT_CITY = "Mumbai"
-        DEFAULT_STATE = "Maharashtra" 
-        DEFAULT_COUNTRY = "India"
+    def get_location() -> dict:
+        """Fetch user's location with manual override options."""
         
-        # Initialize session state
-        if 'location' not in st.session_state:
+        DEFAULT_CITY = "Mumbai"
+        DEFAULT_STATE = "Maharashtra"
+        DEFAULT_COUNTRY = "India"
+
+        # Initialize session state for location
+        if "location" not in st.session_state:
             st.session_state.location = {
                 "city": DEFAULT_CITY,
                 "state": DEFAULT_STATE,
                 "country": DEFAULT_COUNTRY
             }
-        if 'location_detected' not in st.session_state:
-            st.session_state.location_detected = False
-        
-        # Manual override option
-        with st.sidebar.expander("Override location", expanded=False):
-            city = st.text_input("Enter City", DEFAULT_CITY)
-            state = st.selectbox("Select State", 
-                                options=list(RECYCLING_RULES.keys()),
-                                index=list(RECYCLING_RULES.keys()).index(DEFAULT_STATE) if DEFAULT_STATE in RECYCLING_RULES else 0)
-            if st.button("Apply Custom Location"):
-                st.session_state.location = {
-                    "city": city,
-                    "state": state,
-                    "country": DEFAULT_COUNTRY
-                }
-                st.session_state.location_detected = True
-                st.rerun()
-        
-        # Try to detect location using browser API if not detected yet
-        if not st.session_state.location_detected:
-            try:
-                from geolocation import get_browser_location
-                import requests
-                
-                # Show a message to the user
-                with st.spinner("Detecting your location..."):
-                    location_data = get_browser_location()
-                    
-                    if location_data and "lat" in location_data and "lon" in location_data:
-                        # Use reverse geocoding to get address from coordinates
-                        lat, lon = location_data["lat"], location_data["lon"]
-                        
-                        # Use Nominatim (OpenStreetMap) for reverse geocoding
-                        url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
-                        response = requests.get(url, headers={"User-Agent": "YourApp/1.0"})
-                        
-                        if response.status_code == 200:
-                            data = response.json()
-                            address = data.get("address", {})
-                            
-                            city = address.get("city", address.get("town", address.get("village", DEFAULT_CITY)))
-                            state = address.get("state", DEFAULT_STATE)
-                            country = address.get("country", DEFAULT_COUNTRY)
-                            
-                            st.session_state.location = {
-                                "city": city,
-                                "state": state,
-                                "country": country
-                            }
-                            st.session_state.location_detected = True
-                            st.success(f"📍 Location detected: {city}, {state}, {country}")
-                            st.rerun()
-            except Exception as e:
-                st.warning(f"Could not detect location: {str(e)}")
-                st.session_state.location_detected = True  # Prevent repeated attempts
-        
+            st.session_state.show_location_picker = False
+
+        # Sidebar container for location settings
+        location_container = st.sidebar.container()
+
+        # Display current location
+        location_container.markdown("### 📍 Your Location")
+        location_container.markdown(f"**Current:** {st.session_state.location['city']}, {st.session_state.location['state']}, {st.session_state.location['country']}")
+
+        # Use a simpler approach than the problematic geolocation
+        if location_container.button("Change Location"):
+            st.session_state.show_location_picker = True
+
+        # Show manual location selection form if needed
+        if st.session_state.get("show_location_picker", False):
+            with st.sidebar.form("location_form"):
+                st.markdown("### Select Your Location")
+
+                # Predefined cities
+                popular_cities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune"]
+                selected_city = st.radio("Popular Cities", ["Choose City"] + popular_cities)
+
+                city = selected_city if selected_city != "Choose City" else st.text_input("Enter City", DEFAULT_CITY)
+                state = st.selectbox("Select State", options=list(RECYCLING_RULES.keys()), index=0)
+
+                if st.form_submit_button("Save Location"):
+                    st.session_state.location = {
+                        "city": city,
+                        "state": state,
+                        "country": DEFAULT_COUNTRY
+                    }
+                    st.session_state.show_location_picker = False
+                    st.rerun()
+
         return st.session_state.location
 
 def classify_scrap(images: List[Image.Image], location: Dict[str, str]):
