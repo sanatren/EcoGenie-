@@ -98,34 +98,43 @@ RECYCLING_RULES = {
 class LocationService:
     @staticmethod
     def get_location() -> Dict[str, str]:
-        """Get user's location with manual override option"""
-        # Add manual location input option in Streamlit
-        use_manual = st.sidebar.checkbox("Enter location manually?")
+        """Get user's location automatically with manual override option"""
+        # Define your default location
+        DEFAULT_CITY = "Mumbai"
+        DEFAULT_STATE = "Maharashtra" 
+        DEFAULT_COUNTRY = "India"
         
-        if use_manual:
-            city = st.sidebar.text_input("Enter City", "Mumbai")
-            state = st.sidebar.selectbox("Select State", 
-                                       options=list(RECYCLING_RULES.keys()),
-                                       index=0)
-            return {
-                "city": city,
-                "state": state,
-                "country": "India"
-            }
+        # Add manual location input option in Streamlit but collapsed by default
+        with st.sidebar.expander("Override location detection", expanded=False):
+            use_manual = st.checkbox("Enter location manually")
+            
+            if use_manual:
+                city = st.text_input("Enter City", DEFAULT_CITY)
+                state = st.selectbox("Select State", 
+                                   options=list(RECYCLING_RULES.keys()),
+                                   index=list(RECYCLING_RULES.keys()).index(DEFAULT_STATE) if DEFAULT_STATE in RECYCLING_RULES else 0)
+                if st.button("Apply Custom Location"):
+                    return {
+                        "city": city,
+                        "state": state,
+                        "country": DEFAULT_COUNTRY
+                    }
         
+        # Try automatic detection first
         try:
-            st.info("Using IP-based geolocation. Check 'Enter location manually' in sidebar to override.")
             g = geocoder.ip('me')
-            if g.ok:
+            if g.ok and g.city and g.state and g.country:
+                st.success(f"📍 Detected location: {g.city}, {g.state}, {g.country}")
                 return {
-                    "city": g.city or "Mumbai",
-                    "state": g.state or "Maharashtra",
-                    "country": g.country or "India"
+                    "city": g.city,
+                    "state": g.state,
+                    "country": g.country
                 }
-            raise Exception("Geolocation failed")
+            # If any value is None or empty, raise exception
+            raise Exception("Incomplete geolocation data")
         except Exception as e:
-            st.warning("Location detection failed. Defaulting to Mumbai, Maharashtra.")
-            return {"city": "Mumbai", "state": "Maharashtra", "country": "India"}
+            st.warning(f"Location detection failed. Using default location: {DEFAULT_CITY}, {DEFAULT_STATE}.")
+            return {"city": DEFAULT_CITY, "state": DEFAULT_STATE, "country": DEFAULT_COUNTRY}
 
 def classify_scrap(images: List[Image.Image], location: Dict[str, str]):
     """Enhanced classification function with more detailed prompts"""
