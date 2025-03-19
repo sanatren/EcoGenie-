@@ -104,29 +104,6 @@ class LocationService:
         DEFAULT_STATE = "Maharashtra" 
         DEFAULT_COUNTRY = "India"
         
-        # Use browser-based geolocation via JavaScript
-        geolocation_code = """
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-                
-                // Send coordinates to Streamlit
-                const data = {
-                    lat: lat,
-                    lon: lon
-                };
-                
-                Streamlit.setComponentValue(data);
-            },
-            function(error) {
-                // Handle errors here
-                console.error("Geolocation error:", error);
-                Streamlit.setComponentValue({error: error.message});
-            }
-        );
-        """
-        
         # Store location data in session state
         if 'location' not in st.session_state:
             st.session_state.location = {
@@ -142,8 +119,8 @@ class LocationService:
             if use_manual:
                 city = st.text_input("Enter City", DEFAULT_CITY)
                 state = st.selectbox("Select State", 
-                                   options=list(RECYCLING_RULES.keys()),
-                                   index=list(RECYCLING_RULES.keys()).index(DEFAULT_STATE) if DEFAULT_STATE in RECYCLING_RULES else 0)
+                                    options=list(RECYCLING_RULES.keys()),
+                                    index=list(RECYCLING_RULES.keys()).index(DEFAULT_STATE) if DEFAULT_STATE in RECYCLING_RULES else 0)
                 if st.button("Apply Custom Location"):
                     st.session_state.location = {
                         "city": city,
@@ -152,29 +129,24 @@ class LocationService:
                     }
                     st.rerun()
         
-        # Try browser geolocation if we're using the default location
+        # Try an alternative approach using IPinfo API (no browser permissions needed)
         if st.session_state.location["city"] == DEFAULT_CITY and st.session_state.location["state"] == DEFAULT_STATE:
             try:
-                # Use streamlit-component-lib to run JavaScript
-                from streamlit_js_eval import streamlit_js_eval
+                import requests
                 
-                # Request geolocation from browser
-                user_location = streamlit_js_eval(geolocation_code, key="geolocation")
+                # Free IPinfo API (limited to 1,000 requests per day)
+                response = requests.get('https://ipinfo.io/json')
+                data = response.json()
                 
-                if user_location and "lat" in user_location and "lon" in user_location:
-                    # Use reverse geocoding to get city/state from coordinates
-                    lat, lon = user_location["lat"], user_location["lon"]
-                    g = geocoder.osm([lat, lon], method='reverse')
-                    
-                    if g.ok and g.city and g.state and g.country:
-                        st.success(f"📍 Detected location: {g.city}, {g.state}, {g.country}")
-                        st.session_state.location = {
-                            "city": g.city,
-                            "state": g.state,
-                            "country": g.country
-                        }
+                if response.status_code == 200 and 'city' in data and 'region' in data and 'country' in data:
+                    st.success(f"📍 Detected location: {data['city']}, {data['region']}, {data['country']}")
+                    st.session_state.location = {
+                        "city": data['city'],
+                        "state": data['region'],
+                        "country": data['country']
+                    }
             except Exception as e:
-                st.warning(f"Browser geolocation failed: {str(e)}")
+                st.warning(f"Location detection failed: {str(e)}")
         
         return st.session_state.location
 
