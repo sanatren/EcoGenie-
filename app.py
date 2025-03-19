@@ -132,7 +132,7 @@ class LocationService:
         # Try to detect location using browser API if not detected yet
         if not st.session_state.location_detected:
             try:
-                from geolocation import get_browser_location
+                from geo_location import get_browser_location
                 import requests
                 
                 # Show a message to the user
