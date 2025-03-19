@@ -1,13 +1,15 @@
 import streamlit as st
 import os
 import logging
-import geocoder
-from PIL import Image
-from typing import List, Dict
-import google.generativeai as genai
-from streamlit_lottie import st_lottie
 import requests
 import time
+import google.generativeai as genai
+from PIL import Image
+from typing import List, Dict
+from streamlit_lottie import st_lottie
+from streamlit_bokeh_events import streamlit_bokeh_events
+from geopy.geocoders import Nominatim
+from bokeh.models import CustomJS
 
 # Lottie animations
 def load_lottieurl(url: str):
@@ -99,9 +101,8 @@ RECYCLING_RULES = {
 class LocationService:
     @staticmethod
     def get_location() -> dict:
-        """Get user's location with manual selection and default fallback."""
+        """Automatically fetch user's location via browser geolocation API and allow manual override."""
         
-        # Default Location
         DEFAULT_CITY = "Mumbai"
         DEFAULT_STATE = "Maharashtra"
         DEFAULT_COUNTRY = "India"
@@ -113,37 +114,82 @@ class LocationService:
                 "state": DEFAULT_STATE,
                 "country": DEFAULT_COUNTRY
             }
-            st.session_state.show_location_picker = True  # Show picker for first-time users
+            st.session_state.show_location_picker = True  
 
         # Sidebar container for location settings
         location_container = st.sidebar.container()
-        
+
         # Display current location
         location_container.markdown("### 📍 Your Location")
-        location_container.markdown(
-            f"**Current:** {st.session_state.location['city']}, {st.session_state.location['state']}, {st.session_state.location['country']}"
-        )
+        location_container.markdown(f"**Current:** {st.session_state.location['city']}, {st.session_state.location['state']}, {st.session_state.location['country']}")
 
-        # Button to trigger location change
-        if location_container.button("Change Location"):
+        # Get location automatically
+        if location_container.button("📍 Detect My Location"):
+            js_code = """
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const coords = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude
+                    };
+                    document.dispatchEvent(new CustomEvent("GET_LOCATION", {detail: coords}));
+                },
+                (error) => {
+                    document.dispatchEvent(new CustomEvent("GET_LOCATION", {detail: {error: error.message}}));
+                }
+            )
+            """
+
+            result = streamlit_bokeh_events(
+                CustomJS(code=js_code),
+                events="GET_LOCATION",
+                key="get_location",
+                refresh_on_update=False,
+                override_height=0,
+                debounce_time=0
+            )
+
+            if result and "GET_LOCATION" in result:
+                location_data = result["GET_LOCATION"]
+                
+                if "error" in location_data:
+                    st.error(f"Error fetching location: {location_data['error']}")
+                else:
+                    lat, lon = location_data["latitude"], location_data["longitude"]
+                    st.success(f"Your Coordinates: Latitude: {lat}, Longitude: {lon}")
+
+                    # Convert coordinates to a readable address
+                    geolocator = Nominatim(user_agent="geoapi")
+                    location_info = geolocator.reverse((lat, lon), language="en")
+
+                    if location_info:
+                        address_parts = location_info.raw.get("address", {})
+                        city = address_parts.get("city", DEFAULT_CITY)
+                        state = address_parts.get("state", DEFAULT_STATE)
+
+                        st.session_state.location = {
+                            "city": city,
+                            "state": state,
+                            "country": DEFAULT_COUNTRY
+                        }
+                        st.success(f"📍 Location updated: {city}, {state}")
+
+        # Button to trigger manual location change
+        if location_container.button("Change Location Manually"):
             st.session_state.show_location_picker = True
 
-        # Show location selection form if user wants to change location
+        # Show manual location selection form if needed
         if st.session_state.get("show_location_picker", False):
             with st.sidebar.form("location_form"):
                 st.markdown("### Select Your Location")
 
-                # Popular city selection
+                # Predefined cities
                 popular_cities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune"]
                 selected_city = st.radio("Popular Cities", ["Choose City"] + popular_cities)
 
-                # If "Choose City" is selected, allow manual city input
                 city = selected_city if selected_city != "Choose City" else st.text_input("Enter City", DEFAULT_CITY)
-
-                # State selection
                 state = st.selectbox("Select State", options=list(RECYCLING_RULES.keys()), index=0)
 
-                # Save the new location
                 if st.form_submit_button("Save Location"):
                     st.session_state.location = {
                         "city": city,
@@ -151,7 +197,7 @@ class LocationService:
                         "country": DEFAULT_COUNTRY
                     }
                     st.session_state.show_location_picker = False
-                    st.rerun()  # Refresh Streamlit UI to apply changes
+                    st.rerun()
 
         return st.session_state.location
 
