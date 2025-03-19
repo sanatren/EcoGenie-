@@ -6,3 +6,4 @@ requests
 streamlit-lottie
 streamlit-js-eval>=0.1.5
 streamlit-javascript
+streamlit-bokeh-events>=0.1.5
