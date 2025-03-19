@@ -124,9 +124,6 @@ class LocationService:
         # Create a container for the location information
         location_container = st.sidebar.container()
         
-        # Display current location
-        location_container.markdown("### 📍 Your Location")
-        location_container.markdown(f"**Current:** {st.session_state.location['city']}, {st.session_state.location['state']}")
         
         # Create Bokeh button for location detection
         loc_button = Button(label="Detect My Location")
