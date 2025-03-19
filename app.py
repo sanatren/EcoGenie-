@@ -95,10 +95,16 @@ RECYCLING_RULES = {
 }
 
 
+import streamlit as st
+from bokeh.models.widgets import Button
+from bokeh.models import CustomJS
+from streamlit_bokeh_events import streamlit_bokeh_events
+import requests
+
 class LocationService:
     @staticmethod
     def get_location() -> dict:
-        """Get user's location with multiple fallbacks"""
+        """Get user's location using browser geolocation API via Bokeh"""
         # Define your default location
         DEFAULT_CITY = "Mumbai"
         DEFAULT_STATE = "Maharashtra" 
@@ -119,74 +125,65 @@ class LocationService:
         location_container.markdown("### 📍 Your Location")
         location_container.markdown(f"**Current:** {st.session_state.location['city']}, {st.session_state.location['state']}")
         
-        # Add a button to detect location
-        if location_container.button("Detect My Location"):
-            # Try multiple geolocation services
-            success = False
-            
-            # Try method 1: ipapi.co
-            try:
-                import requests
-                with st.spinner("Detecting your location..."):
-                    response = requests.get('https://ipapi.co/json/', timeout=5)
-                    
-                    if response.status_code == 200:
-                        data = response.json()
-                        
-                        if 'city' in data and 'region' in data and 'country_name' in data:
-                            st.session_state.location = {
-                                "city": data['city'],
-                                "state": data['region'],
-                                "country": data['country_name']
-                            }
-                            success = True
-                            st.success(f"Location detected: {data['city']}, {data['region']}")
-                            st.rerun()
-            except Exception as e:
-                st.info(f"Method 1 failed: {str(e)}")
-            
-            # Try method 2: ipinfo.io
-            if not success:
+        # Create Bokeh button for location detection
+        loc_button = Button(label="Detect My Location")
+        loc_button.js_on_event("button_click", CustomJS(code="""
+            navigator.geolocation.getCurrentPosition(
+                (loc) => {
+                    document.dispatchEvent(new CustomEvent("GET_LOCATION", {
+                        detail: {lat: loc.coords.latitude, lon: loc.coords.longitude}
+                    }))
+                },
+                (err) => {
+                    console.error('Geolocation error:', err);
+                    document.dispatchEvent(new CustomEvent("GET_LOCATION", {
+                        detail: {error: err.message}
+                    }))
+                },
+                {enableHighAccuracy: true, timeout: 5000, maximumAge: 0}
+            )
+        """))
+        
+        # Display the button and capture events
+        result = streamlit_bokeh_events(
+            loc_button,
+            events="GET_LOCATION",
+            key="get_location",
+            refresh_on_update=False,
+            override_height=50,
+            debounce_time=0
+        )
+        
+        # Process location if we got coordinates
+        if result and "GET_LOCATION" in result:
+            detail = result.get("GET_LOCATION")
+            if "error" in detail:
+                st.sidebar.warning(f"Error getting location: {detail['error']}")
+            elif "lat" in detail and "lon" in detail:
                 try:
-                    response = requests.get('https://ipinfo.io/json', timeout=5)
+                    lat, lon = detail["lat"], detail["lon"]
+                    
+                    # Use reverse geocoding to get address from coordinates
+                    url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
+                    response = requests.get(url, headers={"User-Agent": "YourApp/1.0"})
                     
                     if response.status_code == 200:
                         data = response.json()
+                        address = data.get("address", {})
                         
-                        if 'city' in data and 'region' in data and 'country' in data:
-                            st.session_state.location = {
-                                "city": data['city'],
-                                "state": data['region'],
-                                "country": data['country']
-                            }
-                            success = True
-                            st.success(f"Location detected: {data['city']}, {data['region']}")
-                            st.rerun()
-                except Exception as e:
-                    st.info(f"Method 2 failed: {str(e)}")
-            
-            # Try method 3: geojs.io
-            if not success:
-                try:
-                    response = requests.get('https://get.geojs.io/v1/ip/geo.json', timeout=5)
-                    
-                    if response.status_code == 200:
-                        data = response.json()
+                        city = address.get("city", address.get("town", address.get("village", DEFAULT_CITY)))
+                        state = address.get("state", DEFAULT_STATE)
+                        country = address.get("country", DEFAULT_COUNTRY)
                         
-                        if 'city' in data and 'region' in data and 'country' in data:
-                            st.session_state.location = {
-                                "city": data['city'],
-                                "state": data['region'],
-                                "country": data['country']
-                            }
-                            success = True
-                            st.success(f"Location detected: {data['city']}, {data['region']}")
-                            st.rerun()
+                        st.session_state.location = {
+                            "city": city,
+                            "state": state,
+                            "country": country
+                        }
+                        st.sidebar.success(f"📍 Location detected: {city}, {state}, {country}")
+                        
                 except Exception as e:
-                    st.info(f"Method 3 failed: {str(e)}")
-            
-            if not success:
-                location_container.warning("Could not determine your location. Please enter it manually.")
+                    st.sidebar.warning(f"Could not process location: {str(e)}")
         
         # Manual override option
         with st.sidebar.expander("Enter location manually", expanded=False):
