@@ -102,10 +102,8 @@ class LocationService:
     @staticmethod
     def get_location() -> dict:
         """
-        Fetch the user's location in two ways:
-          1. Manual override (radio + text input)
-          2. JavaScript-based geolocation (watchPosition or getCurrentPosition)
-        Defaults to Mumbai, Maharashtra, India if not found.
+        Fetch the user's location once (using getCurrentPosition()) 
+        and allow a manual override if that fails.
         """
 
         DEFAULT_CITY = "Mumbai"
@@ -120,8 +118,6 @@ class LocationService:
                 "country": DEFAULT_COUNTRY
             }
             st.session_state.show_location_picker = False
-            # If you want to track whether we are using auto-detection
-            st.session_state.auto_detect_active = False
 
         # Sidebar container for location settings
         location_container = st.sidebar.container()
@@ -134,58 +130,54 @@ class LocationService:
             f"{st.session_state.location['country']}"
         )
 
-        # ---- Button: Enable Auto Location (One-Time or Continuous) ----
+        # Detect location (One-Time)
         if location_container.button("📍 Detect My Location"):
-            # Optional: If you want continuous location, use watchPosition().
-            # For one-time detection, use getCurrentPosition().
-            # Below is watchPosition() (continuous):
+            # One-time geolocation JavaScript
             js_code = """
-            if (!window.geolocationWatching) {
-                window.geolocationWatching = true;
-                navigator.geolocation.watchPosition(
-                    (position) => {
-                        const coords = {
-                            latitude: position.coords.latitude,
-                            longitude: position.coords.longitude,
-                            timestamp: position.timestamp
-                        };
-                        document.dispatchEvent(new CustomEvent("LOCATION_UPDATE", {detail: coords}));
-                    },
-                    (error) => {
-                        document.dispatchEvent(new CustomEvent("LOCATION_UPDATE", {detail: {error: error.message}}));
-                    }
-                );
-            }
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const coords = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude
+                    };
+                    document.dispatchEvent(new CustomEvent("LOCATION_UPDATE", { detail: coords }));
+                },
+                (error) => {
+                    document.dispatchEvent(new CustomEvent("LOCATION_UPDATE", { detail: { error: error.message } }));
+                }
+            );
             """
 
+            # Trigger the JavaScript, listen for LOCATION_UPDATE
             result = streamlit_bokeh_events(
                 CustomJS(code=js_code),
                 events="LOCATION_UPDATE",
-                key="auto_location_key",
+                key="one_time_location",
                 refresh_on_update=False,
                 override_height=0,
                 debounce_time=0
             )
 
             # Debug info
-            st.write("DEBUG: result from watchPosition:", result)
+            st.write("DEBUG: result from getCurrentPosition:", result)
 
+            # If we got an event
             if result and "LOCATION_UPDATE" in result:
                 data = result["LOCATION_UPDATE"]
 
                 if "error" in data:
                     st.error(f"Error fetching location: {data['error']}")
                 else:
-                    lat = data.get("latitude")
-                    lon = data.get("longitude")
-                    st.success(f"Got new coordinates: {lat}, {lon}")
+                    lat = data["latitude"]
+                    lon = data["longitude"]
+                    st.success(f"Coordinates: ({lat}, {lon})")
 
                     # Reverse-geocode to city/state
                     geolocator = Nominatim(user_agent="geoapi")
                     location_info = geolocator.reverse((lat, lon), language="en", exactly_one=True)
                     if location_info:
                         address_parts = location_info.raw.get("address", {})
-                        # 'city' or 'town' or 'county' can appear differently in OSM
+                        # 'city' or 'town' or 'village' can vary in OSM
                         city = address_parts.get("city") or address_parts.get("town") or DEFAULT_CITY
                         state = address_parts.get("state", DEFAULT_STATE)
 
@@ -195,14 +187,14 @@ class LocationService:
                             "country": DEFAULT_COUNTRY
                         }
                         st.write(f"**Updated Location**: {city}, {state}")
-                        # If you want to do a rerun each time:
+
+                        # If you want a rerun after updating location:
                         # st.experimental_rerun()
 
-        # ---- Button: Manual Override ----
+        # Manual override
         if location_container.button("Change Location"):
             st.session_state.show_location_picker = True
 
-        # ---- Manual Location Selection Form ----
         if st.session_state.get("show_location_picker", False):
             with st.sidebar.form("location_form"):
                 st.markdown("### Select Your Location")
@@ -212,7 +204,7 @@ class LocationService:
                     "Hyderabad", "Chennai", "Kolkata", "Pune"
                 ]
                 selected_city = st.radio(
-                    "Popular Cities",
+                    "Popular Cities", 
                     ["Choose City"] + popular_cities
                 )
 
@@ -234,10 +226,9 @@ class LocationService:
                         "country": DEFAULT_COUNTRY
                     }
                     st.session_state.show_location_picker = False
-                    st.experimental_rerun()  # Refresh to see changes
+                    st.experimental_rerun()
 
         return st.session_state.location
-
 def classify_scrap(images: List[Image.Image], location: Dict[str, str]):
     """Enhanced classification function with more detailed prompts"""
     classifications = []
