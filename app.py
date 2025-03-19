@@ -98,7 +98,7 @@ RECYCLING_RULES = {
 class LocationService:
     @staticmethod
     def get_location() -> dict:
-        """Get user's location with a button to trigger browser geolocation"""
+        """Get user's location with multiple fallbacks"""
         # Define your default location
         DEFAULT_CITY = "Mumbai"
         DEFAULT_STATE = "Maharashtra" 
@@ -121,27 +121,72 @@ class LocationService:
         
         # Add a button to detect location
         if location_container.button("Detect My Location"):
+            # Try multiple geolocation services
+            success = False
+            
+            # Try method 1: ipapi.co
             try:
-                # Use ipapi.co to get location data (more accurate than ipinfo.io)
                 import requests
-                response = requests.get('https://ipapi.co/json/')
-                
-                if response.status_code == 200:
-                    data = response.json()
+                with st.spinner("Detecting your location..."):
+                    response = requests.get('https://ipapi.co/json/', timeout=5)
                     
-                    if 'city' in data and 'region' in data and 'country_name' in data:
-                        st.session_state.location = {
-                            "city": data['city'],
-                            "state": data['region'],
-                            "country": data['country_name']
-                        }
-                        st.rerun()
-                    else:
-                        location_container.warning("Could not determine your location. Please enter it manually.")
-                else:
-                    location_container.warning("Location service not available. Please enter location manually.")
+                    if response.status_code == 200:
+                        data = response.json()
+                        
+                        if 'city' in data and 'region' in data and 'country_name' in data:
+                            st.session_state.location = {
+                                "city": data['city'],
+                                "state": data['region'],
+                                "country": data['country_name']
+                            }
+                            success = True
+                            st.success(f"Location detected: {data['city']}, {data['region']}")
+                            st.rerun()
             except Exception as e:
-                location_container.warning(f"Error detecting location: {str(e)}")
+                st.info(f"Method 1 failed: {str(e)}")
+            
+            # Try method 2: ipinfo.io
+            if not success:
+                try:
+                    response = requests.get('https://ipinfo.io/json', timeout=5)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        
+                        if 'city' in data and 'region' in data and 'country' in data:
+                            st.session_state.location = {
+                                "city": data['city'],
+                                "state": data['region'],
+                                "country": data['country']
+                            }
+                            success = True
+                            st.success(f"Location detected: {data['city']}, {data['region']}")
+                            st.rerun()
+                except Exception as e:
+                    st.info(f"Method 2 failed: {str(e)}")
+            
+            # Try method 3: geojs.io
+            if not success:
+                try:
+                    response = requests.get('https://get.geojs.io/v1/ip/geo.json', timeout=5)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        
+                        if 'city' in data and 'region' in data and 'country' in data:
+                            st.session_state.location = {
+                                "city": data['city'],
+                                "state": data['region'],
+                                "country": data['country']
+                            }
+                            success = True
+                            st.success(f"Location detected: {data['city']}, {data['region']}")
+                            st.rerun()
+                except Exception as e:
+                    st.info(f"Method 3 failed: {str(e)}")
+            
+            if not success:
+                location_container.warning("Could not determine your location. Please enter it manually.")
         
         # Manual override option
         with st.sidebar.expander("Enter location manually", expanded=False):
