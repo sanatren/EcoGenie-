@@ -98,136 +98,110 @@ RECYCLING_RULES = {
 
 
 
+import streamlit as st
+from bokeh.models.widgets import Button
+from bokeh.models import CustomJS
+from streamlit_bokeh_events import streamlit_bokeh_events
+import requests
+
 class LocationService:
     @staticmethod
     def get_location() -> dict:
-        """
-        Fetch the user's location once (using getCurrentPosition()) 
-        and allow a manual override if that fails.
-        """
-
+        """Get user's location using browser geolocation API via Bokeh"""
+        # Define your default location
         DEFAULT_CITY = "Mumbai"
-        DEFAULT_STATE = "Maharashtra"
+        DEFAULT_STATE = "Maharashtra" 
         DEFAULT_COUNTRY = "India"
-
-        # Initialize session state for location
-        if "location" not in st.session_state:
+        
+        # Initialize session state
+        if 'location' not in st.session_state:
             st.session_state.location = {
                 "city": DEFAULT_CITY,
                 "state": DEFAULT_STATE,
                 "country": DEFAULT_COUNTRY
             }
-            st.session_state.show_location_picker = False
-
-        # Sidebar container for location settings
+        
+        # Create a container for the location information
         location_container = st.sidebar.container()
-
+        
         # Display current location
         location_container.markdown("### 📍 Your Location")
-        location_container.markdown(
-            f"**Current:** {st.session_state.location['city']}, "
-            f"{st.session_state.location['state']}, "
-            f"{st.session_state.location['country']}"
-        )
-
-        # Detect location (One-Time)
-        if location_container.button("📍 Detect My Location"):
-            # One-time geolocation JavaScript
-            js_code = """
+        location_container.markdown(f"**Current:** {st.session_state.location['city']}, {st.session_state.location['state']}")
+        
+        # Create Bokeh button for location detection
+        loc_button = Button(label="Detect My Location")
+        loc_button.js_on_event("button_click", CustomJS(code="""
             navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const coords = {
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude
-                    };
-                    document.dispatchEvent(new CustomEvent("LOCATION_UPDATE", { detail: coords }));
+                (loc) => {
+                    document.dispatchEvent(new CustomEvent("GET_LOCATION", {
+                        detail: {lat: loc.coords.latitude, lon: loc.coords.longitude}
+                    }))
                 },
-                (error) => {
-                    document.dispatchEvent(new CustomEvent("LOCATION_UPDATE", { detail: { error: error.message } }));
-                }
-            );
-            """
-
-            # Trigger the JavaScript, listen for LOCATION_UPDATE
-            result = streamlit_bokeh_events(
-                CustomJS(code=js_code),
-                events="LOCATION_UPDATE",
-                key="one_time_location",
-                refresh_on_update=False,
-                override_height=0,
-                debounce_time=0
+                (err) => {
+                    console.error('Geolocation error:', err);
+                    document.dispatchEvent(new CustomEvent("GET_LOCATION", {
+                        detail: {error: err.message}
+                    }))
+                },
+                {enableHighAccuracy: true, timeout: 5000, maximumAge: 0}
             )
-
-            # Debug info
-            st.write("DEBUG: result from getCurrentPosition:", result)
-
-            # If we got an event
-            if result and "LOCATION_UPDATE" in result:
-                data = result["LOCATION_UPDATE"]
-
-                if "error" in data:
-                    st.error(f"Error fetching location: {data['error']}")
-                else:
-                    lat = data["latitude"]
-                    lon = data["longitude"]
-                    st.success(f"Coordinates: ({lat}, {lon})")
-
-                    # Reverse-geocode to city/state
-                    geolocator = Nominatim(user_agent="geoapi")
-                    location_info = geolocator.reverse((lat, lon), language="en", exactly_one=True)
-                    if location_info:
-                        address_parts = location_info.raw.get("address", {})
-                        # 'city' or 'town' or 'village' can vary in OSM
-                        city = address_parts.get("city") or address_parts.get("town") or DEFAULT_CITY
-                        state = address_parts.get("state", DEFAULT_STATE)
-
+        """))
+        
+        # Display the button and capture events
+        result = streamlit_bokeh_events(
+            loc_button,
+            events="GET_LOCATION",
+            key="get_location",
+            refresh_on_update=False,
+            override_height=50,
+            debounce_time=0
+        )
+        
+        # Process location if we got coordinates
+        if result and "GET_LOCATION" in result:
+            detail = result.get("GET_LOCATION")
+            if "error" in detail:
+                st.sidebar.warning(f"Error getting location: {detail['error']}")
+            elif "lat" in detail and "lon" in detail:
+                try:
+                    lat, lon = detail["lat"], detail["lon"]
+                    
+                    # Use reverse geocoding to get address from coordinates
+                    url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
+                    response = requests.get(url, headers={"User-Agent": "YourApp/1.0"})
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        address = data.get("address", {})
+                        
+                        city = address.get("city", address.get("town", address.get("village", DEFAULT_CITY)))
+                        state = address.get("state", DEFAULT_STATE)
+                        country = address.get("country", DEFAULT_COUNTRY)
+                        
                         st.session_state.location = {
                             "city": city,
                             "state": state,
-                            "country": DEFAULT_COUNTRY
+                            "country": country
                         }
-                        st.write(f"**Updated Location**: {city}, {state}")
-
-                        # If you want a rerun after updating location:
-                        # st.experimental_rerun()
-
-        # Manual override
-        if location_container.button("Change Location"):
-            st.session_state.show_location_picker = True
-
-        if st.session_state.get("show_location_picker", False):
-            with st.sidebar.form("location_form"):
-                st.markdown("### Select Your Location")
-
-                popular_cities = [
-                    "Mumbai", "Delhi", "Bangalore",
-                    "Hyderabad", "Chennai", "Kolkata", "Pune"
-                ]
-                selected_city = st.radio(
-                    "Popular Cities", 
-                    ["Choose City"] + popular_cities
-                )
-
-                city = (
-                    selected_city
-                    if selected_city != "Choose City"
-                    else st.text_input("Enter City", DEFAULT_CITY)
-                )
-                state = st.selectbox(
-                    "Select State",
-                    options=list(RECYCLING_RULES.keys()),
-                    index=0
-                )
-
-                if st.form_submit_button("Save Location"):
-                    st.session_state.location = {
-                        "city": city,
-                        "state": state,
-                        "country": DEFAULT_COUNTRY
-                    }
-                    st.session_state.show_location_picker = False
-                    st.experimental_rerun()
-
+                        st.sidebar.success(f"📍 Location detected: {city}, {state}, {country}")
+                        
+                except Exception as e:
+                    st.sidebar.warning(f"Could not process location: {str(e)}")
+        
+        # Manual override option
+        with st.sidebar.expander("Enter location manually", expanded=False):
+            city = st.text_input("Enter City", DEFAULT_CITY)
+            state = st.selectbox("Select State", 
+                                options=list(RECYCLING_RULES.keys()),
+                                index=list(RECYCLING_RULES.keys()).index(DEFAULT_STATE) if DEFAULT_STATE in RECYCLING_RULES else 0)
+            if st.button("Apply Custom Location"):
+                st.session_state.location = {
+                    "city": city,
+                    "state": state,
+                    "country": DEFAULT_COUNTRY
+                }
+                st.rerun()
+        
         return st.session_state.location
 def classify_scrap(images: List[Image.Image], location: Dict[str, str]):
     """Enhanced classification function with more detailed prompts"""
