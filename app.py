@@ -101,8 +101,13 @@ RECYCLING_RULES = {
 class LocationService:
     @staticmethod
     def get_location() -> dict:
-        """Fetch user's location with manual override options."""
-        
+        """
+        Fetch the user's location in two ways:
+          1. Manual override (radio + text input)
+          2. JavaScript-based geolocation (watchPosition or getCurrentPosition)
+        Defaults to Mumbai, Maharashtra, India if not found.
+        """
+
         DEFAULT_CITY = "Mumbai"
         DEFAULT_STATE = "Maharashtra"
         DEFAULT_COUNTRY = "India"
@@ -115,29 +120,112 @@ class LocationService:
                 "country": DEFAULT_COUNTRY
             }
             st.session_state.show_location_picker = False
+            # If you want to track whether we are using auto-detection
+            st.session_state.auto_detect_active = False
 
         # Sidebar container for location settings
         location_container = st.sidebar.container()
 
         # Display current location
         location_container.markdown("### 📍 Your Location")
-        location_container.markdown(f"**Current:** {st.session_state.location['city']}, {st.session_state.location['state']}, {st.session_state.location['country']}")
+        location_container.markdown(
+            f"**Current:** {st.session_state.location['city']}, "
+            f"{st.session_state.location['state']}, "
+            f"{st.session_state.location['country']}"
+        )
 
-        # Use a simpler approach than the problematic geolocation
+        # ---- Button: Enable Auto Location (One-Time or Continuous) ----
+        if location_container.button("📍 Detect My Location"):
+            # Optional: If you want continuous location, use watchPosition().
+            # For one-time detection, use getCurrentPosition().
+            # Below is watchPosition() (continuous):
+            js_code = """
+            if (!window.geolocationWatching) {
+                window.geolocationWatching = true;
+                navigator.geolocation.watchPosition(
+                    (position) => {
+                        const coords = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            timestamp: position.timestamp
+                        };
+                        document.dispatchEvent(new CustomEvent("LOCATION_UPDATE", {detail: coords}));
+                    },
+                    (error) => {
+                        document.dispatchEvent(new CustomEvent("LOCATION_UPDATE", {detail: {error: error.message}}));
+                    }
+                );
+            }
+            """
+
+            result = streamlit_bokeh_events(
+                CustomJS(code=js_code),
+                events="LOCATION_UPDATE",
+                key="auto_location_key",
+                refresh_on_update=False,
+                override_height=0,
+                debounce_time=0
+            )
+
+            # Debug info
+            st.write("DEBUG: result from watchPosition:", result)
+
+            if result and "LOCATION_UPDATE" in result:
+                data = result["LOCATION_UPDATE"]
+
+                if "error" in data:
+                    st.error(f"Error fetching location: {data['error']}")
+                else:
+                    lat = data.get("latitude")
+                    lon = data.get("longitude")
+                    st.success(f"Got new coordinates: {lat}, {lon}")
+
+                    # Reverse-geocode to city/state
+                    geolocator = Nominatim(user_agent="geoapi")
+                    location_info = geolocator.reverse((lat, lon), language="en", exactly_one=True)
+                    if location_info:
+                        address_parts = location_info.raw.get("address", {})
+                        # 'city' or 'town' or 'county' can appear differently in OSM
+                        city = address_parts.get("city") or address_parts.get("town") or DEFAULT_CITY
+                        state = address_parts.get("state", DEFAULT_STATE)
+
+                        st.session_state.location = {
+                            "city": city,
+                            "state": state,
+                            "country": DEFAULT_COUNTRY
+                        }
+                        st.write(f"**Updated Location**: {city}, {state}")
+                        # If you want to do a rerun each time:
+                        # st.experimental_rerun()
+
+        # ---- Button: Manual Override ----
         if location_container.button("Change Location"):
             st.session_state.show_location_picker = True
 
-        # Show manual location selection form if needed
+        # ---- Manual Location Selection Form ----
         if st.session_state.get("show_location_picker", False):
             with st.sidebar.form("location_form"):
                 st.markdown("### Select Your Location")
 
-                # Predefined cities
-                popular_cities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune"]
-                selected_city = st.radio("Popular Cities", ["Choose City"] + popular_cities)
+                popular_cities = [
+                    "Mumbai", "Delhi", "Bangalore",
+                    "Hyderabad", "Chennai", "Kolkata", "Pune"
+                ]
+                selected_city = st.radio(
+                    "Popular Cities",
+                    ["Choose City"] + popular_cities
+                )
 
-                city = selected_city if selected_city != "Choose City" else st.text_input("Enter City", DEFAULT_CITY)
-                state = st.selectbox("Select State", options=list(RECYCLING_RULES.keys()), index=0)
+                city = (
+                    selected_city
+                    if selected_city != "Choose City"
+                    else st.text_input("Enter City", DEFAULT_CITY)
+                )
+                state = st.selectbox(
+                    "Select State",
+                    options=list(RECYCLING_RULES.keys()),
+                    index=0
+                )
 
                 if st.form_submit_button("Save Location"):
                     st.session_state.location = {
@@ -146,7 +234,7 @@ class LocationService:
                         "country": DEFAULT_COUNTRY
                     }
                     st.session_state.show_location_picker = False
-                    st.rerun()
+                    st.experimental_rerun()  # Refresh to see changes
 
         return st.session_state.location
 
