@@ -97,8 +97,8 @@ RECYCLING_RULES = {
 
 class LocationService:
     @staticmethod
-    def get_location() -> Dict[str, str]:
-        """Get user's location with browser geolocation API and manual override option"""
+    def get_location() -> dict:
+        """Get user's location with a button to trigger browser geolocation"""
         # Define your default location
         DEFAULT_CITY = "Mumbai"
         DEFAULT_STATE = "Maharashtra" 
@@ -111,11 +111,40 @@ class LocationService:
                 "state": DEFAULT_STATE,
                 "country": DEFAULT_COUNTRY
             }
-        if 'location_detected' not in st.session_state:
-            st.session_state.location_detected = False
+        
+        # Create a container for the location information
+        location_container = st.sidebar.container()
+        
+        # Display current location
+        location_container.markdown("### 📍 Your Location")
+        location_container.markdown(f"**Current:** {st.session_state.location['city']}, {st.session_state.location['state']}")
+        
+        # Add a button to detect location
+        if location_container.button("Detect My Location"):
+            try:
+                # Use ipapi.co to get location data (more accurate than ipinfo.io)
+                import requests
+                response = requests.get('https://ipapi.co/json/')
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if 'city' in data and 'region' in data and 'country_name' in data:
+                        st.session_state.location = {
+                            "city": data['city'],
+                            "state": data['region'],
+                            "country": data['country_name']
+                        }
+                        st.rerun()
+                    else:
+                        location_container.warning("Could not determine your location. Please enter it manually.")
+                else:
+                    location_container.warning("Location service not available. Please enter location manually.")
+            except Exception as e:
+                location_container.warning(f"Error detecting location: {str(e)}")
         
         # Manual override option
-        with st.sidebar.expander("Override location", expanded=False):
+        with st.sidebar.expander("Enter location manually", expanded=False):
             city = st.text_input("Enter City", DEFAULT_CITY)
             state = st.selectbox("Select State", 
                                 options=list(RECYCLING_RULES.keys()),
@@ -126,46 +155,7 @@ class LocationService:
                     "state": state,
                     "country": DEFAULT_COUNTRY
                 }
-                st.session_state.location_detected = True
                 st.rerun()
-        
-        # Try to detect location using browser API if not detected yet
-        if not st.session_state.location_detected:
-            try:
-                from geo_location import get_browser_location
-                import requests
-                
-                # Show a message to the user
-                with st.spinner("Detecting your location..."):
-                    location_data = get_browser_location()
-                    
-                    if location_data and "lat" in location_data and "lon" in location_data:
-                        # Use reverse geocoding to get address from coordinates
-                        lat, lon = location_data["lat"], location_data["lon"]
-                        
-                        # Use Nominatim (OpenStreetMap) for reverse geocoding
-                        url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
-                        response = requests.get(url, headers={"User-Agent": "YourApp/1.0"})
-                        
-                        if response.status_code == 200:
-                            data = response.json()
-                            address = data.get("address", {})
-                            
-                            city = address.get("city", address.get("town", address.get("village", DEFAULT_CITY)))
-                            state = address.get("state", DEFAULT_STATE)
-                            country = address.get("country", DEFAULT_COUNTRY)
-                            
-                            st.session_state.location = {
-                                "city": city,
-                                "state": state,
-                                "country": country
-                            }
-                            st.session_state.location_detected = True
-                            st.success(f"📍 Location detected: {city}, {state}, {country}")
-                            st.rerun()
-            except Exception as e:
-                st.warning(f"Could not detect location: {str(e)}")
-                st.session_state.location_detected = True  # Prevent repeated attempts
         
         return st.session_state.location
 def classify_scrap(images: List[Image.Image], location: Dict[str, str]):
