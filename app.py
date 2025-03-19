@@ -99,10 +99,13 @@ RECYCLING_RULES = {
 
 
 class LocationService:
+    """Handles automatic and manual location selection for Streamlit apps."""
+
     @staticmethod
     def get_location() -> dict:
-        """Automatically fetch user's location via browser geolocation API and allow manual override."""
-        
+        """Fetch user's location automatically using the Geolocation API, 
+        with an option for manual selection."""
+
         DEFAULT_CITY = "Mumbai"
         DEFAULT_STATE = "Maharashtra"
         DEFAULT_COUNTRY = "India"
@@ -114,7 +117,7 @@ class LocationService:
                 "state": DEFAULT_STATE,
                 "country": DEFAULT_COUNTRY
             }
-            st.session_state.show_location_picker = True  
+            st.session_state.show_location_picker = True  # Show picker for first-time users
 
         # Sidebar container for location settings
         location_container = st.sidebar.container()
@@ -123,7 +126,7 @@ class LocationService:
         location_container.markdown("### 📍 Your Location")
         location_container.markdown(f"**Current:** {st.session_state.location['city']}, {st.session_state.location['state']}, {st.session_state.location['country']}")
 
-        # Get location automatically
+        # Button to trigger location detection
         if location_container.button("📍 Detect My Location"):
             js_code = """
             navigator.geolocation.getCurrentPosition(
@@ -140,6 +143,7 @@ class LocationService:
             )
             """
 
+            # Capture the JavaScript result
             result = streamlit_bokeh_events(
                 CustomJS(code=js_code),
                 events="GET_LOCATION",
@@ -149,9 +153,12 @@ class LocationService:
                 debounce_time=0
             )
 
+            # DEBUG: Print response from JS
+            st.write("DEBUG: Geolocation API Result:", result)  
+
             if result and "GET_LOCATION" in result:
                 location_data = result["GET_LOCATION"]
-                
+
                 if "error" in location_data:
                     st.error(f"Error fetching location: {location_data['error']}")
                 else:
@@ -160,35 +167,44 @@ class LocationService:
 
                     # Convert coordinates to a readable address
                     geolocator = Nominatim(user_agent="geoapi")
-                    location_info = geolocator.reverse((lat, lon), language="en")
+                    location_info = geolocator.reverse((lat, lon), language="en", exactly_one=True)
+
+                    # DEBUG: Print Reverse Geocoding Response
+                    st.write("DEBUG: Reverse Geocoding Response:", location_info.raw if location_info else "No response")
 
                     if location_info:
                         address_parts = location_info.raw.get("address", {})
-                        city = address_parts.get("city", DEFAULT_CITY)
+                        city = address_parts.get("city", address_parts.get("town", DEFAULT_CITY))
                         state = address_parts.get("state", DEFAULT_STATE)
 
+                        st.success(f"📍 Location updated: {city}, {state}")
+
+                        # Update session state
                         st.session_state.location = {
                             "city": city,
                             "state": state,
                             "country": DEFAULT_COUNTRY
                         }
-                        st.success(f"📍 Location updated: {city}, {state}")
+                        st.rerun()
 
-        # Button to trigger manual location change
+        # Button to manually change location
         if location_container.button("Change Location Manually"):
             st.session_state.show_location_picker = True
 
-        # Show manual location selection form if needed
+        # Manual selection form
         if st.session_state.get("show_location_picker", False):
             with st.sidebar.form("location_form"):
                 st.markdown("### Select Your Location")
 
-                # Predefined cities
+                # Popular city selection
                 popular_cities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune"]
                 selected_city = st.radio("Popular Cities", ["Choose City"] + popular_cities)
 
+                # If "Choose City" is selected, allow manual city input
                 city = selected_city if selected_city != "Choose City" else st.text_input("Enter City", DEFAULT_CITY)
-                state = st.selectbox("Select State", options=list(RECYCLING_RULES.keys()), index=0)
+
+                # State selection
+                state = st.selectbox("Select State", options=["Maharashtra", "Delhi", "Karnataka", "Tamil Nadu", "West Bengal", "Gujarat", "Rajasthan", "Andhra Pradesh", "Telangana", "Uttar Pradesh"], index=0)
 
                 if st.form_submit_button("Save Location"):
                     st.session_state.location = {
